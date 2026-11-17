@@ -151,8 +151,8 @@ SESSION_DAYS = int(env("PEAKCUT_SESSION_DAYS", "30"))
 ACCOUNTS = env("PEAKCUT_ACCOUNTS", "0") == "1"
 # The two buttons along the top of the dashboard: the project's code, and where to follow its maker (feedback goes
 # there too). Set either to an empty value to hide that button, or point them at your own pages in a fork.
-REPO_URL = env("PEAKCUT_REPO_URL", "https://github.com/haziqahmedqasmi/peakcut").strip()
-FOLLOW_URL = env("PEAKCUT_FOLLOW_URL", "https://www.instagram.com/haziq.builds/").strip()
+REPO_URL = env("PEAKCUT_REPO_URL", "https://github.com/tharunshark/momentdeck").strip()
+FOLLOW_URL = env("PEAKCUT_FOLLOW_URL", "").strip()
 
 # ---------------------------------------------------------------- limits (per user, and for the whole server)
 # Your own PeakCut has no limits unless you set them: 0 (the default) means "none" for every limit below. The
