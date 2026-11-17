@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#211813">
+  <title>MomentDeck — find the moment, make the clip</title>
+  <meta name="description" content="A local-first highlight clipping workspace. Review moments from streams and videos you are authorized to use, then download clips for manual posting.">
+  <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg">
+  <style>
+    :root{color-scheme:light;--ink:#211813;--dim:#76675e;--line:#e9dfd8;--orange:#ff8b33;--paper:#fffaf6}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}header,main,footer{width:min(1040px,calc(100% - 40px));margin:auto}header{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:750;letter-spacing:-.04em;font-size:20px}.brand img{width:34px;height:34px}a{color:inherit}header a:last-child{font-size:14px;font-weight:650;text-decoration:none;background:var(--orange);padding:10px 16px;border-radius:10px}main{padding:78px 0 82px}.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:750;color:#a45018}h1{font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-.065em;max-width:780px;margin:18px 0}.intro{max-width:650px;color:var(--dim);font-size:19px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:28px 0 54px}.actions a{border:1px solid var(--line);border-radius:10px;padding:11px 16px;text-decoration:none;font-weight:650}.actions a:first-child{background:var(--orange);border-color:var(--orange)}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.step{border:1px solid var(--line);border-radius:14px;background:white;padding:20px}.step b{display:block;margin-bottom:5px}.step p{margin:0;color:var(--dim);font-size:14px}.note{margin-top:24px;padding:16px 18px;border-left:3px solid var(--orange);background:#fff1e6;color:#65452f;font-size:14px}footer{border-top:1px solid var(--line);padding:22px 0 36px;color:var(--dim);font-size:13px}footer a{margin-right:15px}@media(max-width:700px){main{padding-top:52px}.steps{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header><div class="brand"><img src="/brand/favicon.svg" alt="">MomentDeck</div><a href="/app">Open the studio</a></header>
+  <main>
+    <div class="eyebrow">A creator-controlled clipping workspace</div>
+    <h1>Find the moment.<br>Make the clip.</h1>
+    <p class="intro">Bring a stream or video link you have permission to use. MomentDeck finds highlight candidates so you can review the source moment, download the clips you like, and post them yourself.</p>
+    <div class="actions"><a href="/app">Open the studio</a></div>
+    <section class="steps" aria-label="How it works">
+      <article class="step"><b>01 · Submit a link</b><p>Use a supported stream or video source, and confirm you have the right to process it.</p></article>
+      <article class="step"><b>02 · Review candidates</b><p>Check each suggested clip's score, source time, and duration before deciding what to keep.</p></article>
+      <article class="step"><b>03 · Download and post</b><p>Download the MP4 and publish it yourself when you are ready. The app does not auto-publish.</p></article>
+    </section>
+    <p class="note"><b>Prototype limits:</b> MomentDeck runs locally. It currently uses the inherited source-fetching pipeline, does not analyze chat velocity or emotes, and outputs up to 1080p. Use only content you own or are authorized to process.</p>
+  </main>
+  <footer><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable use</a><span>MomentDeck is an adapted fork of MomentDeck; see the repository's MIT license and attribution.</span></footer>
+</body>
+</html>
