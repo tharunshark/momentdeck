@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import alerts, auth, brain, config, creators, ctx, jobs, load, media, transcribe, usage
+from . import accounts, alerts, auth, brain, config, creators, ctx, jobs, load, media, transcribe, usage
 
 SESSIONS: dict = {}
 SEG_SEC = 6           # length of each buffer piece
@@ -115,8 +115,10 @@ class Session:
         self.csv_seen = {}
         self.part = 0
         self.chat = collections.Counter()   # second -> messages
+        self.emotes = collections.Counter() # second -> Twitch emote occurrences
         self.chat_total = 0
         self.chat_on = False
+        self.chat_status = "Waiting for Twitch chat access"
         self.last_check = 0.0
         self.words_at_check = 0
         self.checks = 0
@@ -243,12 +245,16 @@ class Session:
     def _chat(self, channel):
         while not self.stop_flag.is_set() and not self.ended:
             try:
+                token, login = accounts.twitch_chat_token(accounts.twitch_chat_account())
                 raw = socket.create_connection(("irc.chat.twitch.tv", 6697), timeout=20)
                 s = ssl.create_default_context().wrap_socket(raw, server_hostname="irc.chat.twitch.tv")
-                s.sendall(f"NICK justinfan{int(time.time()) % 90000 + 10000}\r\nJOIN #{channel}\r\n".encode())
+                s.sendall((f"PASS oauth:{token}\r\nNICK {login.lower()}\r\n"
+                           "CAP REQ :twitch.tv/tags twitch.tv/commands\r\n"
+                           f"JOIN #{channel}\r\n").encode())
                 s.settimeout(30)
                 rest = b""
                 self.chat_on = True
+                self.chat_status = f"Connected as {login}"
                 while not self.stop_flag.is_set() and not self.ended:
                     try:
                         data = s.recv(8192)
@@ -260,14 +266,30 @@ class Session:
                     for line in lines:
                         if line.startswith(b"PING"):
                             s.sendall(b"PONG :tmi.twitch.tv\r\n")
+                        elif b"Login authentication failed" in line:
+                            self.chat_status = "Twitch rejected chat access; reconnect the account"
+                            s.close()
+                            return
                         elif b" PRIVMSG #" in line:
+                            tags = {}
+                            message = line
+                            if line.startswith(b"@") and b" " in line:
+                                raw_tags, message = line.split(b" ", 1)
+                                tags = dict((part.split(b"=", 1) + [b""])[:2] for part in raw_tags[1:].split(b";") if b"=" in part)
+                            emote_tag = tags.get(b"emotes", b"").decode("utf-8", "ignore")
+                            emote_count = sum(len(group.split(":", 1)[1].split(",")) for group in emote_tag.split("/") if ":" in group)
                             with self.lock:
-                                self.chat[int(self.samples / SR)] += 1
+                                second = int(self.samples / SR)
+                                self.chat[second] += 1
+                                self.emotes[second] += emote_count
                                 self.chat_total += 1
                 s.close()
             except Exception:  # noqa: BLE001
-                pass
+                self.chat_status = "Twitch chat disconnected; retrying"
             self.chat_on = False
+            if not accounts.twitch_chat_account():
+                self.chat_status = "Connect a Twitch account with chat:read access in Settings"
+                return
             self.stop_flag.wait(5)
 
     def _chat_spike(self, s, e):
@@ -319,7 +341,9 @@ class Session:
                 self.base = {"warming": True}
                 return
             db = np.array(self.db[max(0, n - 190):], dtype=np.float32)
-            chat = [self.chat.get(t, 0) for t in range(max(0, n - 190), n)] if (self.chat_on or self.chat_total) else None
+            start = max(0, n - 190)
+            chat = [self.chat.get(t, 0) for t in range(start, n)] if (self.chat_on or self.chat_total) else None
+            emotes = [self.emotes.get(t, 0) for t in range(start, n)] if chat is not None else None
         amp = 10 ** (db / 20)                       # loudness as plain level, so a percentage means something
         base, cur = float(amp[:-10].mean()), float(amp[-5:].mean())
         loud_jump = cur / max(base, 1e-6) - 1
@@ -327,15 +351,23 @@ class Session:
         why = []
         if loud_jump >= pct:
             why.append(f"loudness +{round(loud_jump * 100)}%")
-        chat_base = chat_now = None
+        chat_base = chat_now = emote_base = emote_now = None
         if chat is not None:
             chat_base = sum(chat[:-10]) / max(1, len(chat) - 10)
             chat_now = sum(chat[-8:]) / 8          # chat is bursty, so look at a slightly longer stretch
             if chat_now >= max(1.5, chat_base * (1 + pct)):
-                why.append(f"chat +{round((chat_now / max(chat_base, 0.01) - 1) * 100)}%")
+                why.append(f"chat velocity +{round((chat_now / max(chat_base, 0.01) - 1) * 100)}%")
+            if emotes is not None:
+                emote_base = sum(emotes[:-10]) / max(1, len(emotes) - 10)
+                emote_now = sum(emotes[-8:]) / 8
+                if emote_now >= max(0.75, emote_base * 1.8):
+                    why.append(f"emote velocity +{round((emote_now / max(emote_base, 0.01) - 1) * 100)}%")
         self.base = {"loud_db": round(20 * np.log10(max(base, 1e-6)), 1), "loud_now": round(loud_jump * 100),
                      "chat": round(chat_base, 2) if chat_base is not None else None,
-                     "chat_now": round(chat_now, 2) if chat_now is not None else None, "pct": round(pct * 100)}
+                     "chat_now": round(chat_now, 2) if chat_now is not None else None,
+                     "emotes": round(emote_base, 2) if emote_base is not None else None,
+                     "emotes_now": round(emote_now, 2) if emote_now is not None else None,
+                     "pct": round(pct * 100)}
         if why and not self.spike and n - self.last_spike >= self.AUTO_GAP:
             self.spike = {"t": float(n - 3), "why": ", ".join(why)}
             self.last_spike = n
@@ -540,10 +572,15 @@ class Session:
                 live={"elapsed": round(elapsed), "buffer_sec": round(self.segments[-1][2] - self.segments[0][1]) if self.segments else 0,
                       "lines": [l["text"] for l in lines], "level": [round(x) for x in self.db[-60:]],
                       "chat": [self.chat.get(t, 0) for t in range(max(0, sec - 60), sec)] if self.chat_on or self.chat_total else None,
+                      "emotes": [self.emotes.get(t, 0) for t in range(max(0, sec - 60), sec)] if self.chat_on or self.chat_total else None,
+                      "chat_status": self.chat_status,
                       "checks": self.checks, "skipped": self.skipped, "tokens": self.tokens, "words": len(self.words),
                       "rejected": self.rejected, "verdicts": list(reversed(self.verdicts)),
                       "every_min": int(self.settings.get("ai_every_min", 3)) or 3,
-                      "auto": None,
+                      "auto": {"warming": bool(self.base.get("warming")), "waiting": bool(self.spike), "spikes": self.spikes,
+                               "chat_on": self.chat_on, "chat_rate": self.base.get("chat_now"),
+                               "chat_baseline": self.base.get("chat"), "emote_rate": self.base.get("emotes_now"),
+                               "emote_baseline": self.base.get("emotes"), "why": self.spike.get("why") if self.spike else ""},
                       "pending_clips": len(self.manual)})
         jobs.save(self.job)
 

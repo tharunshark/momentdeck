@@ -32,7 +32,7 @@ IG_UPLOAD = "https://rupload.facebook.com/ig-api-upload/v21.0"
 IG_SCOPES = "instagram_business_basic,instagram_business_content_publish"
 TT = "https://open.tiktokapis.com/v2"
 TT_SCOPES = "user.info.basic,video.publish"
-PLATFORM_NAMES = {"youtube": "YouTube", "instagram": "Instagram", "tiktok": "TikTok"}
+PLATFORM_NAMES = {"youtube": "YouTube", "instagram": "Instagram", "tiktok": "TikTok", "twitch": "Twitch chat"}
 
 
 def _dir() -> Path:
@@ -70,8 +70,9 @@ def _write(name, data):
 # name -> (what the platform calls the id, what it calls the secret, .env names for both)
 APPS = {"google": ("Client ID", "Client secret", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
         "instagram": ("Instagram app ID", "Instagram app secret", "PEAKCUT_IG_APP_ID", "PEAKCUT_IG_APP_SECRET"),
-        "tiktok": ("Client key", "Client secret", "PEAKCUT_TIKTOK_CLIENT_KEY", "PEAKCUT_TIKTOK_CLIENT_SECRET")}
-APP_FOR = {"youtube": "google", "instagram": "instagram", "tiktok": "tiktok"}
+        "tiktok": ("Client key", "Client secret", "PEAKCUT_TIKTOK_CLIENT_KEY", "PEAKCUT_TIKTOK_CLIENT_SECRET"),
+        "twitch": ("Client ID", "Client secret", "PEAKCUT_TWITCH_CLIENT_ID", "PEAKCUT_TWITCH_CLIENT_SECRET")}
+APP_FOR = {"youtube": "google", "instagram": "instagram", "tiktok": "tiktok", "twitch": "twitch"}
 _apps_seen = {"at": None, "data": {}}
 
 
@@ -180,6 +181,9 @@ def connect_url(platform: str) -> str:
         return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode({
             "client_id": cid, "redirect_uri": redirect, "response_type": "code", "scope": YT_SCOPES,
             "access_type": "offline", "prompt": "consent", "state": state})
+    if platform == "twitch":
+        return "https://id.twitch.tv/oauth2/authorize?" + urlencode({
+            "client_id": cid, "redirect_uri": redirect, "response_type": "code", "scope": "chat:read", "state": state})
     if platform == "instagram":
         return "https://www.instagram.com/oauth/authorize?" + urlencode({
             "client_id": cid, "redirect_uri": redirect, "response_type": "code", "scope": IG_SCOPES, "state": state})
@@ -192,7 +196,28 @@ def connect_finish(platform: str, code: str, state: str) -> dict:
     code = (code or "").split("#")[0]           # Instagram adds "#_" to the code
     if not code:
         raise ValueError("The platform did not send a sign-in code. Try again.")
-    return {"youtube": _youtube_finish, "instagram": _instagram_finish, "tiktok": _tiktok_finish}[platform](code)
+    return {"youtube": _youtube_finish, "instagram": _instagram_finish, "tiktok": _tiktok_finish,
+            "twitch": _twitch_finish}[platform](code)
+
+
+def twitch_chat_account():
+    """Return this user's connected Twitch chat identity, if one is available."""
+    return next((a for a in _all() if a.get("platform") == "twitch"), None)
+
+
+def twitch_chat_token(acc) -> tuple[str, str]:
+    """Refresh and return a Twitch IRC chat token and the authorized login name."""
+    if not acc:
+        raise ValueError("Connect a Twitch account with chat access in Settings first.")
+    if acc.get("expires", 0) <= time.time():
+        cid, secret = app_keys("twitch")
+        tok = _check(httpx.post("https://id.twitch.tv/oauth2/token", data={
+            "client_id": cid, "client_secret": secret, "grant_type": "refresh_token",
+            "refresh_token": acc.get("refresh_token", "")}, timeout=30), "Refreshing Twitch chat access").json()
+        acc.update(access_token=tok["access_token"], refresh_token=tok.get("refresh_token", acc.get("refresh_token", "")),
+                   expires=time.time() + tok.get("expires_in", 3600) - 60)
+        _put(acc)
+    return acc["access_token"], acc["login"]
 
 
 # ------------------------------------------------------------------ links the platforms can fetch a clip from
@@ -336,6 +361,29 @@ def _yt_token(acc) -> str:
     acc.update(access_token=tok["access_token"], expires=time.time() + tok.get("expires_in", 3600) - 60)
     _put(acc)
     return acc["access_token"]
+
+
+def _twitch_finish(code: str) -> dict:
+    cid, secret = app_keys("twitch")
+    tok = _check(httpx.post("https://id.twitch.tv/oauth2/token", data={
+        "client_id": cid, "client_secret": secret, "code": code,
+        "redirect_uri": redirect_for("twitch"), "grant_type": "authorization_code"}, timeout=30),
+        "Twitch sign-in").json()
+    access = tok.get("access_token", "")
+    if not access:
+        raise ValueError("Twitch did not return a chat access token. Please connect again.")
+    me = _check(httpx.get("https://id.twitch.tv/oauth2/validate", headers={"Authorization": f"OAuth {access}"},
+                          timeout=30), "Checking Twitch chat access").json()
+    if "chat:read" not in me.get("scopes", []):
+        raise ValueError("MomentDeck needs the chat:read permission to detect chat activity.")
+    if me.get("client_id") != cid or not me.get("login") or not tok.get("refresh_token"):
+        raise ValueError("Twitch did not return a refreshable chat sign-in. Check the Twitch app settings and try again.")
+    acc = {"id": f"tw_{me['user_id']}", "platform": "twitch", "name": me["login"], "login": me["login"],
+           "added": time.time(), "access_token": access, "refresh_token": tok["refresh_token"],
+           "expires": time.time() + tok.get("expires_in", me.get("expires_in", 3600)) - 60,
+           "scopes": me.get("scopes", [])}
+    _put(acc)
+    return acc
 
 
 def youtube_upload(acc, path: Path, title: str, description: str, tags: list, privacy: str):
