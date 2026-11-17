@@ -10,6 +10,18 @@
   <style>
     :root{color-scheme:light;--ink:#211813;--dim:#76675e;--line:#e9dfd8;--orange:#ff8b33;--paper:#fffaf6}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}header,main,footer{width:min(1040px,calc(100% - 40px));margin:auto}header{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:750;letter-spacing:-.04em;font-size:20px}.brand img{width:34px;height:34px}a{color:inherit}header a:last-child{font-size:14px;font-weight:650;text-decoration:none;background:var(--orange);padding:10px 16px;border-radius:10px}main{padding:78px 0 82px}.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:750;color:#a45018}h1{font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-.065em;max-width:780px;margin:18px 0}.intro{max-width:650px;color:var(--dim);font-size:19px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:28px 0 54px}.actions a{border:1px solid var(--line);border-radius:10px;padding:11px 16px;text-decoration:none;font-weight:650}.actions a:first-child{background:var(--orange);border-color:var(--orange)}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.step{border:1px solid var(--line);border-radius:14px;background:white;padding:20px}.step b{display:block;margin-bottom:5px}.step p{margin:0;color:var(--dim);font-size:14px}.note{margin-top:24px;padding:16px 18px;border-left:3px solid var(--orange);background:#fff1e6;color:#65452f;font-size:14px}footer{border-top:1px solid var(--line);padding:22px 0 36px;color:var(--dim);font-size:13px}footer a{margin-right:15px}@media(max-width:700px){main{padding-top:52px}.steps{grid-template-columns:1fr}}
   </style>
+  <style>
+    :root{--ink:#193754;--dim:#536d7a;--line:rgba(30,65,85,.16);--orange:#78aeb0;--paper:#eee7d8;--sea:#376f84}
+    body{background:radial-gradient(ellipse at 83% 12%,rgba(120,174,176,.3),transparent 34%),radial-gradient(ellipse at 12% 92%,rgba(55,111,132,.25),transparent 40%),linear-gradient(145deg,#f2ecde,#e4e8dd);background-attachment:fixed}
+    header{border-color:rgba(255,255,255,.58)}
+    .brand img{filter:drop-shadow(0 5px 10px rgba(25,55,84,.16))}
+    header a:last-child,.actions a:first-child{background:linear-gradient(135deg,#8dbabd,#6d9fab);border-color:rgba(255,255,255,.72);color:#183955;box-shadow:0 8px 22px rgba(53,109,130,.18)}
+    .eyebrow{color:#356d82}
+    .step,.note{background:rgba(255,253,245,.58);border:1px solid rgba(255,255,255,.76);box-shadow:0 14px 32px rgba(24,57,85,.08),inset 0 1px rgba(255,255,255,.72);backdrop-filter:blur(18px) saturate(125%);-webkit-backdrop-filter:blur(18px) saturate(125%)}
+    .note{border-left:3px solid #78aeb0;color:#365568}
+    footer{border-color:rgba(255,255,255,.58)}
+    @media(prefers-reduced-transparency:reduce){.step,.note{backdrop-filter:none;-webkit-backdrop-filter:none}}
+  </style>
 </head>
 <body>
   <header><div class="brand"><img src="/brand/favicon.svg" alt="">MomentDeck</div><a href="/app">Open the studio</a></header>
@@ -28,4 +40,3 @@
   <footer><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable use</a><span>MomentDeck is an adapted fork of PeakCut; see the repository's MIT license and attribution.</span></footer>
 </body>
 </html>
-
