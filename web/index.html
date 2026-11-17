@@ -567,6 +567,8 @@ img.av{object-fit:cover}
 .meter h4{font-size:12px;color:var(--dim);font-weight:600;margin-bottom:9px}
 .spark{display:flex;align-items:flex-end;gap:1px;height:46px}
 .spark i{flex:1;background:var(--brand);min-height:2px;border-radius:1px}.spark.chat i{background:var(--good)}
+.spark.emotes i{background:#C1A36F}
+.signal-rate{display:flex;align-items:baseline;gap:6px;margin:0 0 8px;color:var(--dim);font-size:12px}.signal-rate b{font-size:20px;color:var(--brand-ink);font-variant-numeric:tabular-nums}.signal-rate span{margin-left:auto}
 .said{font-size:13px;color:var(--faint);height:76px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
 .said div:last-child{color:var(--text)}
 
@@ -1324,7 +1326,7 @@ function pathFor(v, tab) {
 function fromPath(path) {
   const m = path.match(/^\/app\/creators\/([^/]+)(?:\/(setup|activity|clips))?\/?$/);
   if (m) return ["c:" + decodeURIComponent(m[1]), m[2] || "clips"];
-  const st = path.match(/^\/app\/settings(?:\/(ai|profile|security|apps|storage))?\/?$/);
+  const st = path.match(/^\/app\/settings(?:\/(ai|profile|security|apps|storage|chat))?\/?$/);
   if (st) return ["settings", st[1] || null];
   const k = Object.keys(ROUTES).find(x => ROUTES[x] && path.replace(/\/$/, "") === "/app/" + ROUTES[x]);
   return [k || "overview", "clips"];
@@ -1745,8 +1747,12 @@ function liveHtml(j) {
       ${L.pending_clips ? `<div class="stat"><b>${L.pending_clips}</b><span>Hand clip being prepared</span></div>` : ""}</div>
     <div class="meters">
       <div class="meter"><h4>Loudness, last minute</h4>${spark(L.level, "", -55, -8)}</div>
-      ${L.chat ? `<div class="meter"><h4>Chat messages per second</h4>${spark(L.chat, "chat", 0, Math.max(4, ...L.chat))}</div>` : ""}
-      <div class="meter"><h4>Latest AI decisions</h4><div class="said" style="justify-content:flex-start;color:var(--text)">${(L.verdicts || []).length ? L.verdicts.slice(0, 4).map(v => `<div>${fmt(v.t)} · ${v.transcript != null ? "words " + v.transcript : ""}${v.reaction != null ? " · reaction " + v.reaction : ""} · <span class="sub">${esc(v.result)}</span></div>`).join("") : "<div class='sub'>First check soon…</div>"}</div></div>
+      ${j.source?.url?.includes("twitch.tv") ? `<div class="meter"><h4>Twitch chat velocity · ${esc(L.chat_status || "Waiting")}</h4>
+        <div class="signal-rate"><b>${Number.isFinite(L.auto?.chat_rate) ? L.auto.chat_rate.toFixed(2) : "—"}</b> messages/sec<span>baseline ${Number.isFinite(L.auto?.chat_baseline) ? L.auto.chat_baseline.toFixed(2) : "—"}/sec</span></div>
+        ${L.chat?.length ? spark(L.chat, "chat", 0, Math.max(4, ...L.chat)) : "<p class='sub'>Connect Twitch chat access to see live message velocity.</p>"}</div>
+        <div class="meter"><h4>Emote activity</h4><div class="signal-rate"><b>${Number.isFinite(L.auto?.emote_rate) ? L.auto.emote_rate.toFixed(2) : "—"}</b> emotes/sec<span>baseline ${Number.isFinite(L.auto?.emote_baseline) ? L.auto.emote_baseline.toFixed(2) : "—"}/sec</span></div>
+        ${L.emotes?.length ? spark(L.emotes, "emotes", 0, Math.max(3, ...L.emotes)) : "<p class='sub'>Emote activity appears after chat connects.</p>"}</div>` : ""}
+      <div class="meter"><h4>Latest AI decisions</h4><div class="said" style="justify-content:flex-start;color:var(--text)">${(L.verdicts || []).length ? L.verdicts.slice(0, 4).map(v => `<div>${fmt(v.t)} · ${v.trigger ? esc(v.trigger) + " · " : ""}${v.transcript != null ? "words " + v.transcript : ""}${v.reaction != null ? " · reaction " + v.reaction : ""} · <span class="sub">${esc(v.result)}</span></div>`).join("") : "<div class='sub'>First check soon…</div>"}</div></div>
       <div class="meter"><h4>What was just said</h4><div class="said">${L.lines.length ? L.lines.map(t => `<div>${esc(t)}</div>`).join("") : "<div>Listening…</div>"}</div></div>
     </div>${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}</div>
     ${j.clips.length ? `<div class="grid" style="margin-bottom:28px">${[...j.clips].reverse().map(c => clipHtml(j, c)).join("")}</div>` : ""}`;
@@ -1986,6 +1992,7 @@ function drawUsage() {
 /* ============================================================ settings */
 // With sign-in off there is no profile or password to manage. The AI section is for whoever runs the server.
 const setTabs = () => [
+  ["chat", "Chat signals", "radio", "Connect Twitch chat for velocity spikes"],
   ...(S.status.user?.is_admin ? [["ai", "AI", "bolt", "Your AI service, model and key"]] : []),
   ...(S.status.accounts === false ? [] : [["profile", "Profile", "user", "Your name, email and how you sign in"],
                                           ["security", "Security", "lock", "Password and signing out"]]),
@@ -2020,6 +2027,24 @@ async function drawSettings() {
           </div>
           <div class="row" style="margin-top:20px"><button class="btn primary" data-act="aisave">Save and test</button>${k.ready ? `<button class="btn" data-act="aitest">Test again</button>` : ""}</div></section>`;
       aiHints();
+    }
+    if (tab === "chat") {
+      const connected = await api("/api/accounts");
+      const twitch = connected.find(a => a.platform === "twitch");
+      const ready = !!S.status.connect?.twitch;
+      let app = null;
+      if (me?.is_admin && !ready) app = (await api("/api/apps")).twitch;
+      body.innerHTML = `<section class="set-sec"><h2>Twitch chat velocity</h2>
+        <p class="help">On Twitch live recordings, MomentDeck measures messages and emote activity each second. A sustained jump can trigger an extra highlight check; clips remain candidates for you to review and download.</p>
+        ${!ready && me?.is_admin ? `<div class="card appcard"><div class="apptx"><b>1. Register a Twitch app</b><span>Use callback URL <code>${esc(location.origin)}/oauth/twitch/callback</code>, then save its credentials here.</span></div>
+          <label class="f">Client ID<input id="app_id" value="${esc(app?.id_hint || "")}" autocomplete="off"></label>
+          <label class="f">Client secret<input id="app_secret" type="password" autocomplete="new-password"></label>
+          <button class="btn primary" data-act="appsave" data-p="twitch">Save Twitch app</button></div>` : ""}
+        ${!ready ? `<p class="help">${me?.is_admin ? "After saving the app, connect a Twitch account with chat:read permission below." : "The server owner must configure the Twitch app before chat access can be connected."}</p>` : ""}
+        <div class="card appcard"><div class="apptx"><b>${twitch ? `Connected as ${esc(twitch.name)}` : "2. Connect a Twitch account"}</b>
+          <span>${twitch ? "Chat velocity and Twitch emote activity are enabled for authorized Twitch live streams." : "Twitch chat is only read when you connect an account and confirm you have permission to monitor the stream."}</span></div>
+          ${twitch ? `<button class="btn danger" data-act="accremove" data-id="${esc(twitch.id)}">Disconnect</button>` : ready ? `<a class="btn primary" href="/oauth/twitch/start">Connect Twitch</a>` : `<button class="btn primary" disabled>Connect Twitch</button>`}</div>
+        <p class="sub">YouTube live-chat velocity is not connected yet. Video links and audio activity continue to work independently.</p></section>`;
     }
     if (tab === "profile") {
       const joined = me.created_at ? new Date(me.created_at * 1000).toLocaleDateString([], {day: "numeric", month: "long", year: "numeric"}) : "";
@@ -2383,7 +2408,7 @@ document.addEventListener("click", async e => {
     }
     if (a === "testalert") { await saveSettings(); await api("/api/alerts/test", {method:"POST"}); return toast("Test message sent. Check your phone.", "ok"); }
     if (a === "accremove") {
-      if (!await ask("Disconnect this account?", "Posts still waiting for it will fail.", "Disconnect", true)) return;
+      if (!await ask("Disconnect this account?", "MomentDeck will stop using this account's Twitch chat access.", "Disconnect", true)) return;
       await api(`/api/accounts/${d.id}`, {method:"DELETE"}); await tick(); return drawSettings();
     }
     if (a === "remake") {
