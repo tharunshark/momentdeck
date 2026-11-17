@@ -1,0 +1,7 @@
+MomentDeck is an adapted fork of PeakCut (https://github.com/haziqahmedqasmi/peakcut).
+
+The upstream PeakCut code is Copyright (c) 2026 PeakCut contributors and is
+licensed under the MIT License reproduced in LICENSE. MomentDeck retains that
+notice for the reused code. MomentDeck's name, permission-first link workflow,
+manual review/download experience, and source-time candidate details are
+adaptations made for this project.
